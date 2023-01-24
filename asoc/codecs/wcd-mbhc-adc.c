@@ -365,6 +365,9 @@ static int wcd_mbhc_adc_get_hs_thres(struct wcd_mbhc *mbhc)
 		hs_threshold = ((WCD_MBHC_ADC_HS_THRESHOLD_MV *
 			micbias_mv) / WCD_MBHC_ADC_MICBIAS_MV);
 	}
+	/* FIH add start, for EHCS-audio */
+	printk("BBox::EHCS;52102:i:%s:hs_threshold: %d",__func__,hs_threshold);
+	/* FIH add start, for EHCS-audio */
 	return hs_threshold;
 }
 
@@ -383,6 +386,9 @@ static int wcd_mbhc_adc_get_hph_thres(struct wcd_mbhc *mbhc)
 		hph_threshold = ((WCD_MBHC_ADC_HPH_THRESHOLD_MV *
 			micbias_mv) / WCD_MBHC_ADC_MICBIAS_MV);
 	}
+	/* FIH add start, for EHCS-audio */
+	printk("BBox::EHCS;52102:i:%s:hph_threshold: %d",__func__,hph_threshold);
+	/* FIH add start, for EHCS-audio */
 	return hph_threshold;
 }
 

@@ -33,6 +33,29 @@
 #include "wcd-mbhc-adc.h"
 #include "wcd-mbhc-v2-api.h"
 
+//fih FTM headset and btn detect-S
+atomic_t fih_btn_state;
+atomic_t fih_plug_type;
+
+int get_plug_type(void)
+{
+    int plug_type;
+
+    plug_type = atomic_read(&fih_plug_type);
+	return (plug_type + 1);
+}
+EXPORT_SYMBOL(get_plug_type);
+
+int get_btn_state(void)
+{
+    int btn_state;
+
+    btn_state = atomic_read(&fih_btn_state);
+	return btn_state;
+}
+EXPORT_SYMBOL(get_btn_state);
+//fih FTM headset and btn detect-E
+
 void wcd_mbhc_jack_report(struct wcd_mbhc *mbhc,
 			  struct snd_soc_jack *jack, int status, int mask)
 {
@@ -561,6 +584,9 @@ void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 
 	pr_debug("%s: enter insertion %d hph_status %x\n",
 		 __func__, insertion, mbhc->hph_status);
+	/* FIH add start, for EHCS-audio */
+	printk("BBox::EHCS;52100:i:%s:enter insertion %d hph_status %x",__func__,insertion,mbhc->hph_status);
+	/* FIH add end, for EHCS-audio */
 	if (!insertion) {
 		/* Report removal */
 		mbhc->hph_status &= ~jack_type;
@@ -599,6 +625,9 @@ void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 		mbhc->zl = mbhc->zr = 0;
 		pr_debug("%s: Reporting removal %d(%x)\n", __func__,
 			 jack_type, mbhc->hph_status);
+		/* FIH add start, for EHCS-audio */
+		printk("BBox::EHCS;52100:i:%s:Reporting removal %d(%x)",__func__,jack_type,mbhc->hph_status);
+		/* FIH add end, for EHCS-audio */
 		wcd_mbhc_jack_report(mbhc, &mbhc->headset_jack,
 				mbhc->hph_status, WCD_MBHC_JACK_MASK);
 		wcd_mbhc_set_and_turnoff_hph_padac(mbhc);
@@ -639,6 +668,9 @@ void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 			mbhc->zl = mbhc->zr = 0;
 			pr_debug("%s: Reporting removal (%x)\n",
 				 __func__, mbhc->hph_status);
+			/* FIH add start, for EHCS-audio */
+			printk("BBox::EHCS;52100:i:%s:Reporting removal (%x)",__func__,mbhc->hph_status);
+			/* FIH add end, for EHCS-audio */
 			wcd_mbhc_jack_report(mbhc, &mbhc->headset_jack,
 					    0, WCD_MBHC_JACK_MASK);
 
@@ -721,11 +753,17 @@ void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 
 		pr_debug("%s: Reporting insertion %d(%x)\n", __func__,
 			 jack_type, mbhc->hph_status);
+		/* FIH add start, for EHCS-audio */
+		printk("BBox::EHCS;52100:i:%s:Reporting insertion %d(%x)",__func__,jack_type,mbhc->hph_status);
+		/* FIH add end, for EHCS-audio */
 		wcd_mbhc_jack_report(mbhc, &mbhc->headset_jack,
 				    (mbhc->hph_status | SND_JACK_MECHANICAL),
 				    WCD_MBHC_JACK_MASK);
 		wcd_mbhc_clr_and_turnon_hph_padac(mbhc);
 	}
+	//fih FTM headset and btn detect-S
+	atomic_set(&fih_plug_type, mbhc->current_plug);
+	//fih FTM headset and btn detect-E
 	pr_debug("%s: leave hph_status %x\n", __func__, mbhc->hph_status);
 }
 EXPORT_SYMBOL(wcd_mbhc_report_plug);
@@ -1042,8 +1080,14 @@ static void wcd_btn_lpress_fn(struct work_struct *work)
 	if (mbhc->current_plug == MBHC_PLUG_TYPE_HEADSET) {
 		pr_debug("%s: Reporting long button press event, btn_result: %d\n",
 			 __func__, btn_result);
+		/* FIH add start, for EHCS-audio */
+		printk("BBox::EHCS;52102:i:%s:Reporting long btn press event, btn_result: %d",__func__,btn_result);
+		/* FIH add end, for EHCS-audio */
 		wcd_mbhc_jack_report(mbhc, &mbhc->button_jack,
 				mbhc->buttons_pressed, mbhc->buttons_pressed);
+		//fih FTM headset and btn detect-S
+		atomic_set(&fih_btn_state, 1);
+		//fih FTM headset and btn detect-E
 	}
 	pr_debug("%s: leave\n", __func__);
 	mbhc->mbhc_cb->lock_sleep(mbhc, false);
@@ -1161,8 +1205,14 @@ static irqreturn_t wcd_mbhc_release_handler(int irq, void *data)
 		if (ret == 0) {
 			pr_debug("%s: Reporting long button release event\n",
 				 __func__);
+			/* FIH add start, for EHCS-audio */
+			printk("BBox::EHCS;52102:i:%s:Reporting long button release event",__func__);
+			/* FIH add end, for EHCS-audio */
 			wcd_mbhc_jack_report(mbhc, &mbhc->button_jack,
 					0, mbhc->buttons_pressed);
+			//fih FTM headset and btn detect-S
+			atomic_set(&fih_btn_state, 0);
+			//fih FTM headset and btn detect-E
 		} else {
 			if (mbhc->in_swch_irq_handler) {
 				pr_debug("%s: Switch irq kicked in, ignore\n",
@@ -1170,15 +1220,27 @@ static irqreturn_t wcd_mbhc_release_handler(int irq, void *data)
 			} else {
 				pr_debug("%s: Reporting btn press\n",
 					 __func__);
+				/* FIH add start, for EHCS-audio */
+				printk("BBox::EHCS;52102:i:%s:Reporting btn press",__func__);
+				/* FIH add end, for EHCS-audio */
 				wcd_mbhc_jack_report(mbhc,
 						     &mbhc->button_jack,
 						     mbhc->buttons_pressed,
 						     mbhc->buttons_pressed);
+				//fih FTM headset and btn detect-S
+				atomic_set(&fih_btn_state, 1);
+				//fih FTM headset and btn detect-E
 				pr_debug("%s: Reporting btn release\n",
 					 __func__);
+				/* FIH add start, for EHCS-audio */
+				printk("BBox::EHCS;52102:i:%s:Reporting btn release",__func__);
+				/* FIH add end, for EHCS-audio */
 				wcd_mbhc_jack_report(mbhc,
 						&mbhc->button_jack,
 						0, mbhc->buttons_pressed);
+				//fih FTM headset and btn detect-S
+				atomic_set(&fih_btn_state, 0);
+				//fih FTM headset and btn detect-E
 			}
 		}
 		mbhc->buttons_pressed &= ~WCD_MBHC_JACK_BUTTON_MASK;
@@ -1740,6 +1802,11 @@ int wcd_mbhc_start(struct wcd_mbhc *mbhc, struct wcd_mbhc_config *mbhc_cfg)
 			goto err;
 		}
 	}
+
+	//fih FTM headset and btn detect-S
+	atomic_set(&fih_btn_state, 0);
+	atomic_set(&fih_plug_type, 0);
+	//fih FTM headset and btn detect-E
 
 	/* Set btn key code */
 	if ((!mbhc->is_btn_already_regd) && wcd_mbhc_set_keycode(mbhc))

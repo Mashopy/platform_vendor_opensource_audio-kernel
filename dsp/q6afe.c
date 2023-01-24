@@ -122,6 +122,7 @@ struct afe_ctl {
 	int set_custom_topology;
 	int dev_acdb_id[AFE_MAX_PORTS];
 	routing_cb rt_cb;
+	int afe_bypass;
 };
 
 static atomic_t afe_ports_mad_type[SLIMBUS_PORT_LAST - SLIMBUS_0_RX];
@@ -3201,6 +3202,18 @@ exit:
 	return ret;
 }
 
+void afe_set_bypass(int enable)
+{
+	this_afe.afe_bypass = enable;
+}
+EXPORT_SYMBOL(afe_set_bypass);
+
+int afe_get_bypass(void)
+{
+	return this_afe.afe_bypass;
+}
+EXPORT_SYMBOL(afe_get_bypass);
+
 static int __afe_port_start(u16 port_id, union afe_port_config *afe_config,
 			    u32 rate, u16 afe_in_channels, u16 afe_in_bit_width,
 			    union afe_enc_config_data *enc_cfg,
@@ -3278,16 +3291,18 @@ static int __afe_port_start(u16 port_id, union afe_port_config *afe_config,
 	port_index = afe_get_port_index(port_id);
 	if (!(this_afe.afe_cal_mode[port_index] == AFE_CAL_MODE_NONE)) {
 		/* One time call: only for first time */
+		if (!this_afe.afe_bypass) {
 		afe_send_custom_topology();
 		afe_send_port_topology_id(port_id);
 		afe_send_cal(port_id);
 		afe_send_hw_delay(port_id, rate);
 	}
+	}
 
 	/* Start SW MAD module */
 	mad_type = afe_port_get_mad_type(port_id);
-	pr_debug("%s: port_id 0x%x, mad_type %d\n", __func__, port_id,
-		 mad_type);
+	pr_debug("%s: port_id 0x%x, mad_type %d, afe_bypass %d\n", __func__, port_id,
+		 mad_type, this_afe.afe_bypass);
 	if (mad_type != MAD_HW_NONE && mad_type != MAD_SW_AUDIO) {
 		if (!afe_has_config(AFE_CDC_REGISTERS_CONFIG) ||
 			!afe_has_config(AFE_SLIMBUS_SLAVE_CONFIG)) {
@@ -7501,6 +7516,7 @@ static int __init afe_init(void)
 	atomic_set(&this_afe.state, 0);
 	atomic_set(&this_afe.status, 0);
 	atomic_set(&this_afe.mem_map_cal_index, -1);
+	this_afe.afe_bypass = 0;
 	this_afe.apr = NULL;
 	this_afe.dtmf_gen_rx_portid = -1;
 	this_afe.mmap_handle = 0;

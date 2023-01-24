@@ -521,4 +521,6 @@ int msm_pcm_routing_reg_stream_app_type_cfg(
 int msm_pcm_routing_get_stream_app_type_cfg(
 	int fedai_id, int session_type, int *be_id,
 	struct msm_pcm_stream_app_type_cfg *cfg_data);
+void adm_set_bypass(int enable);
+int adm_get_bypass(void);
 #endif /*_MSM_PCM_H*/
