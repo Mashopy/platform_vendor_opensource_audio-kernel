@@ -153,6 +153,9 @@ static const struct snd_kcontrol_new name##_mux = \
 
 #define WCD934X_DIG_CORE_COLLAPSE_TIMER_MS  (5 * 1000)
 
+/* for BBS log */
+#define CODEC_PROBE_FAIL	do {printk("BBox;%s: Codec probe failure\n", __func__); printk("BBox::UEC;2::3\n");} while (0)
+
 enum {
 	POWER_COLLAPSE,
 	POWER_RESUME,
@@ -250,6 +253,13 @@ struct interp_sample_rate {
 	int sample_rate;
 	int rate_val;
 };
+
+//FIH add start
+/* Only valid for 9.6 MHz mclk */
+static char const * dmic_sample_rate_text[] = {"DEFAULT", "KHZ_600", "MHZ_2P4", "MHZ_3P2", "MHZ_4P8"};
+static SOC_ENUM_SINGLE_EXT_DECL(tavil_dmic_sample_rate, dmic_sample_rate_text);
+static u32 specicied_dmic_sample_rate = WCD9XXX_DMIC_SAMPLE_RATE_UNDEFINED;
+//FIH add end
 
 static struct interp_sample_rate sr_val_tbl[] = {
 	{8000, 0x0}, {16000, 0x1}, {32000, 0x3}, {48000, 0x4}, {96000, 0x5},
@@ -4562,6 +4572,14 @@ static u32 tavil_get_dmic_sample_rate(struct snd_soc_codec *codec,
 				dmic_fs = WCD9XXX_DMIC_SAMPLE_RATE_2P4MHZ;
 		} else
 			dmic_fs = WCD9XXX_DMIC_SAMPLE_RATE_4P8MHZ;
+
+		//FIH add start
+		if(specicied_dmic_sample_rate > WCD9XXX_DMIC_SAMPLE_RATE_UNDEFINED) {
+			dev_err(codec->dev,
+				"%s: use specicied_dmic_sample_rate = %d\n", __func__, specicied_dmic_sample_rate);
+			dmic_fs = specicied_dmic_sample_rate;
+		}
+		//FIH add end
 	} else {
 		dmic_fs = pdata->dmic_sample_rate;
 	}
@@ -5825,6 +5843,66 @@ static int tavil_amic_pwr_lvl_put(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+//FIH add start
+static int tavil_dmic_sample_rate_get(struct snd_kcontrol *kcontrol,
+				  struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
+
+	dev_dbg(codec->dev, "%s: specicied_dmic_sample_rate = %d\n", __func__, specicied_dmic_sample_rate);
+
+	switch(specicied_dmic_sample_rate) {
+		case WCD9XXX_DMIC_SAMPLE_RATE_600KHZ:
+			ucontrol->value.integer.value[0] = 1;
+			break;
+		case WCD9XXX_DMIC_SAMPLE_RATE_2P4MHZ:
+			ucontrol->value.integer.value[0] = 2;
+			break;
+		case WCD9XXX_DMIC_SAMPLE_RATE_3P2MHZ:
+			ucontrol->value.integer.value[0] = 3;
+			break;
+		case WCD9XXX_DMIC_SAMPLE_RATE_4P8MHZ:
+			ucontrol->value.integer.value[0] = 4;
+			break;
+		default:
+			ucontrol->value.integer.value[0] = 0;
+			break;
+	}
+	return 0;
+}
+
+static int tavil_dmic_sample_rate_put(struct snd_kcontrol *kcontrol,
+				  struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
+	u32 rate_val;
+
+	rate_val = ucontrol->value.enumerated.item[0];
+
+	dev_err(codec->dev, "%s: put dmic_sample_rate = %d\n", __func__, rate_val);
+
+	switch(rate_val) {
+		case 1:
+			specicied_dmic_sample_rate = WCD9XXX_DMIC_SAMPLE_RATE_600KHZ;
+			break;
+		case 2:
+			specicied_dmic_sample_rate = WCD9XXX_DMIC_SAMPLE_RATE_2P4MHZ;
+			break;
+		case 3:
+			specicied_dmic_sample_rate = WCD9XXX_DMIC_SAMPLE_RATE_3P2MHZ;
+			break;
+		case 4:
+			specicied_dmic_sample_rate = WCD9XXX_DMIC_SAMPLE_RATE_4P8MHZ;
+			break;
+		default:
+			specicied_dmic_sample_rate = WCD9XXX_DMIC_SAMPLE_RATE_UNDEFINED;
+			break;
+	}
+
+	return 0;
+}
+//FIH add end
+
 static const char *const tavil_conn_mad_text[] = {
 	"NOTUSED1", "ADC1", "ADC2", "ADC3", "ADC4", "NOTUSED5",
 	"NOTUSED6", "NOTUSED2", "DMIC0", "DMIC1", "DMIC2", "DMIC3",
@@ -6460,6 +6538,10 @@ static const struct snd_kcontrol_new tavil_snd_controls[] = {
 		tavil_amic_pwr_lvl_get, tavil_amic_pwr_lvl_put),
 	SOC_ENUM_EXT("AMIC_5_6 PWR MODE", amic_pwr_lvl_enum,
 		tavil_amic_pwr_lvl_get, tavil_amic_pwr_lvl_put),
+//FIH add start
+	SOC_ENUM_EXT("DMIC SampleRate", tavil_dmic_sample_rate,
+			tavil_dmic_sample_rate_get, tavil_dmic_sample_rate_put),
+//FIH add end
 };
 
 static int tavil_dec_enum_put(struct snd_kcontrol *kcontrol,
@@ -10711,8 +10793,11 @@ static void tavil_add_child_devices(struct work_struct *work)
 	platdata = &tavil->swr.plat_data;
 	tavil->child_count = 0;
 
-	for_each_child_of_node(wcd9xxx->dev->of_node, node) {
-
+	/* FIH modified start */
+	/* to disable swr_master in device tree */
+	//for_each_child_of_node(wcd9xxx->dev->of_node, node) {
+	for_each_available_child_of_node(wcd9xxx->dev->of_node, node) {
+	/* FIH modified end */
 		/* Parse and add the SPI device node */
 		if (!strcmp(node->name, "wcd_spi")) {
 			tavil_codec_add_spi_device(tavil, node);
@@ -11005,6 +11090,7 @@ static int tavil_probe(struct platform_device *pdev)
 	if (ret) {
 		dev_err(&pdev->dev, "%s: Codec registration failed\n",
 		 __func__);
+		CODEC_PROBE_FAIL;
 		goto err_cdc_reg;
 	}
 	schedule_work(&tavil->tavil_add_child_devices_work);

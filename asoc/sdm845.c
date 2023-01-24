@@ -37,7 +37,12 @@
 #include "codecs/msm-cdc-pinctrl.h"
 #include "codecs/wcd934x/wcd934x.h"
 #include "codecs/wcd934x/wcd934x-mbhc.h"
+
+#include "fih-common.h"
+
+#ifdef USE_QC_SPK_AMP
 #include "codecs/wsa881x.h"
+#endif
 
 #define DRV_NAME "sdm845-asoc-snd"
 
@@ -58,14 +63,19 @@
 #define SAMPLING_RATE_352P8KHZ  352800
 #define SAMPLING_RATE_384KHZ    384000
 
+#ifdef USE_QC_MBHC
 #define WCD9XXX_MBHC_DEF_BUTTONS    8
 #define WCD9XXX_MBHC_DEF_RLOADS     5
+#endif
+
 #define CODEC_EXT_CLK_RATE          9600000
 #define ADSP_STATE_READY_TIMEOUT_MS 3000
 #define DEV_NAME_STR_LEN            32
 
+#ifdef USE_QC_SPK_AMP
 #define WSA8810_NAME_1 "wsa881x.20170211"
 #define WSA8810_NAME_2 "wsa881x.20170212"
+#endif
 
 #define WCN_CDC_SLIM_RX_CH_MAX 2
 #define WCN_CDC_SLIM_TX_CH_MAX 3
@@ -77,6 +87,13 @@
 
 #define TDM_MAX_SLOTS		8
 #define TDM_SLOT_WIDTH_BITS	32
+
+#ifdef USE_QC_HIFI_AMP
+#define MSM_HIFI_ON 1
+#endif
+
+/* for BBS log */
+#define REGISTER_ADSP_STATE_NOTIFIER_FAIL	do {printk("BBox;%s: Register adsp state notifier failure\n", __func__); printk("BBox::UEC;2::2\n");} while (0)
 
 enum {
 	SLIM_RX_0 = 0,
@@ -147,10 +164,12 @@ enum {
 	EXT_DISP_RX_IDX_MAX,
 };
 
+#ifdef USE_QC_SPK_AMP
 struct msm_wsa881x_dev_info {
 	struct device_node *of_node;
 	u32 index;
 };
+#endif
 
 enum pinctrl_pin_state {
 	STATE_DISABLE = 0, /* All pins are in sleep state */
@@ -179,12 +198,18 @@ struct msm_asoc_mach_data {
 	struct device_node *hph_en0_gpio_p; /* used by pinctrl API */
 	struct snd_info_entry *codec_root;
 	struct msm_pinctrl_info pinctrl_info;
+#ifdef AUDIO_HAC_SUPPORT
+	int hac_amp_en_gpio;
+	struct device_node *hac_amp_en_gpio_p;
+#endif //AUDIO_HAC_SUPPORT
 };
 
 struct msm_asoc_wcd93xx_codec {
 	void* (*get_afe_config_fn)(struct snd_soc_codec *codec,
 				   enum afe_config_type config_type);
+#ifdef USE_QC_MBHC
 	void (*mbhc_hs_detect_exit)(struct snd_soc_codec *codec);
+#endif
 };
 
 static const char *const pin_states[] = {"sleep", "i2s-active",
@@ -464,6 +489,9 @@ static struct dev_config aux_pcm_tx_cfg[] = {
 	[QUAT_AUX_PCM] = {SAMPLING_RATE_8KHZ, SNDRV_PCM_FORMAT_S16_LE, 1},
 };
 
+#ifdef AUDIO_HAC_SUPPORT
+static int ext_hac_amp_en_gpio = -1;
+#endif //AUDIO_HAC_SUPPORT
 static int msm_vi_feed_tx_ch = 2;
 static const char *const slim_rx_ch_text[] = {"One", "Two"};
 static const char *const slim_tx_ch_text[] = {"One", "Two", "Three", "Four",
@@ -513,8 +541,18 @@ static char const *mi2s_rate_text[] = {"KHZ_8", "KHZ_11P025", "KHZ_16",
 static const char *const mi2s_ch_text[] = {"One", "Two", "Three", "Four",
 					   "Five", "Six", "Seven",
 					   "Eight"};
+#ifdef USE_QC_HIFI_AMP
 static const char *const hifi_text[] = {"Off", "On"};
+#endif
 static const char *const qos_text[] = {"Disable", "Enable"};
+#ifdef AUDIO_BYPASS_AFE_ADM_SUPPORT
+static const char *const bypass_text[] = {"Off", "On"};
+#endif
+//fih FTM headset and btn detect-S
+static const char *const audio_plug_type_text[] = {"TYPE_INVALID", "No_Device", "Headset", "Headphone",
+						"HIGH_HPH", "GND_MIC_SWAP", "ANC_HPH"};
+static const char *const audio_btn_state_text[] = {"0", "1"};
+//fih FTM headset and btn detect-E
 
 static SOC_ENUM_SINGLE_EXT_DECL(slim_0_rx_chs, slim_rx_ch_text);
 static SOC_ENUM_SINGLE_EXT_DECL(slim_2_rx_chs, slim_rx_ch_text);
@@ -580,24 +618,47 @@ static SOC_ENUM_SINGLE_EXT_DECL(mi2s_rx_format, bit_format_text);
 static SOC_ENUM_SINGLE_EXT_DECL(mi2s_tx_format, bit_format_text);
 static SOC_ENUM_SINGLE_EXT_DECL(aux_pcm_rx_format, bit_format_text);
 static SOC_ENUM_SINGLE_EXT_DECL(aux_pcm_tx_format, bit_format_text);
+#ifdef USE_QC_HIFI_AMP
 static SOC_ENUM_SINGLE_EXT_DECL(hifi_function, hifi_text);
+#endif
 static SOC_ENUM_SINGLE_EXT_DECL(qos_vote, qos_text);
+#ifdef AUDIO_BYPASS_AFE_ADM_SUPPORT
+static SOC_ENUM_SINGLE_EXT_DECL(afe_bypass, bypass_text);
+static SOC_ENUM_SINGLE_EXT_DECL(adm_bypass, bypass_text);
+#endif
+//fih FTM headset and btn detect-S
+static SOC_ENUM_SINGLE_EXT_DECL(audio_plug_type, audio_plug_type_text);
+static SOC_ENUM_SINGLE_EXT_DECL(audio_btn_state, audio_btn_state_text);
+//fih FTM headset and btn detect-E
 
 static struct platform_device *spdev;
+#ifdef USE_QC_HIFI_AMP
 static int msm_hifi_control;
+#endif
 static int qos_vote_status;
 
 static bool is_initial_boot;
 static bool codec_reg_done;
+#ifdef USE_QC_SPK_AMP
 static struct snd_soc_aux_dev *msm_aux_dev;
 static struct snd_soc_codec_conf *msm_codec_conf;
+#endif
 static struct msm_asoc_wcd93xx_codec msm_codec_fn;
 
+#ifdef USE_QC_MBHC
+#ifdef USE_FIH_HS_BTN_TUNING
+static void *def_tavil_mbhc_cal(struct snd_soc_card *card);
+#else
 static void *def_tavil_mbhc_cal(void);
+#endif//USE_FIH_HS_BTN_TUNING
+#endif//USE_QC_MBHC
 static int msm_snd_enable_codec_ext_clk(struct snd_soc_codec *codec,
 					int enable, bool dapm);
+#ifdef USE_QC_SPK_AMP
 static int msm_wsa881x_init(struct snd_soc_component *component);
+#endif
 
+#ifdef USE_QC_MBHC
 /*
  * Need to report LINEIN
  * if R/L channel impedance is larger than 5K ohm
@@ -610,9 +671,15 @@ static struct wcd_mbhc_config wcd_mbhc_cfg = {
 	.swap_gnd_mic = NULL,
 	.hs_ext_micbias = true,
 	.key_code[0] = KEY_MEDIA,
+#if 1 //#if defined(CONFIG_FIH_AOP)
+	.key_code[1] = KEY_VOLUMEUP,
+	.key_code[2] = KEY_VOLUMEDOWN,
+	.key_code[3] = 0,
+#else
 	.key_code[1] = KEY_VOICECOMMAND,
 	.key_code[2] = KEY_VOLUMEUP,
 	.key_code[3] = KEY_VOLUMEDOWN,
+#endif
 	.key_code[4] = 0,
 	.key_code[5] = 0,
 	.key_code[6] = 0,
@@ -623,6 +690,7 @@ static struct wcd_mbhc_config wcd_mbhc_cfg = {
 	.anc_micbias = MIC_BIAS_2,
 	.enable_anc_mic_detect = false,
 };
+#endif
 
 static struct snd_soc_dapm_route wcd_audio_paths[] = {
 	{"MIC BIAS1", NULL, "MCLK TX"},
@@ -2842,6 +2910,7 @@ static int msm_aux_pcm_tx_format_put(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+#ifdef USE_QC_HIFI_AMP
 static int msm_hifi_ctrl(struct snd_soc_codec *codec)
 {
 	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
@@ -2891,6 +2960,31 @@ static int msm_hifi_put(struct snd_kcontrol *kcontrol,
 
 	return 0;
 }
+#endif
+
+//fih FTM headset and btn detect-S
+static int audio_plug_type_get(struct snd_kcontrol *kcontrol,
+			struct snd_ctl_elem_value *ucontrol)
+{
+	int plug_type;
+
+	plug_type = get_plug_type();
+	ucontrol->value.enumerated.item[0] = plug_type;
+
+	return 0;
+}
+
+static int audio_btn_state_get(struct snd_kcontrol *kcontrol,
+			struct snd_ctl_elem_value *ucontrol)
+{
+	int btn_state;
+
+	btn_state = get_btn_state();
+	ucontrol->value.enumerated.item[0] = btn_state;
+
+	return 0;
+}
+//fih FTM headset and btn detect-E
 
 static int msm_qos_ctl_get(struct snd_kcontrol *kcontrol,
 			   struct snd_ctl_elem_value *ucontrol)
@@ -2942,6 +3036,40 @@ static int msm_qos_ctl_put(struct snd_kcontrol *kcontrol,
 
 	return 0;
 }
+
+#ifdef AUDIO_BYPASS_AFE_ADM_SUPPORT
+static int afe_bypass_get(struct snd_kcontrol *kcontrol,
+				   struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.enumerated.item[0] = afe_get_bypass();
+	printk("%s value (%d)\n",__func__,ucontrol->value.enumerated.item[0]);
+	return 0;
+}
+
+static int afe_bypass_put(struct snd_kcontrol *kcontrol,
+				   struct snd_ctl_elem_value *ucontrol)
+{
+	afe_set_bypass(ucontrol->value.enumerated.item[0]);
+	printk("%s value (%d)\n",__func__,ucontrol->value.enumerated.item[0]);
+	return 0;
+}
+
+static int adm_bypass_get(struct snd_kcontrol *kcontrol,
+				   struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.enumerated.item[0] = adm_get_bypass();
+	printk("%s value (%d)\n",__func__,ucontrol->value.enumerated.item[0]);
+	return 0;
+}
+
+static int adm_bypass_put(struct snd_kcontrol *kcontrol,
+				   struct snd_ctl_elem_value *ucontrol)
+{
+	adm_set_bypass(ucontrol->value.enumerated.item[0]);
+	printk("%s value (%d)\n",__func__,ucontrol->value.enumerated.item[0]);
+	return 0;
+}
+#endif
 
 static const struct snd_kcontrol_new msm_snd_controls[] = {
 	SOC_ENUM_EXT("SLIM_0_RX Channels", slim_0_rx_chs,
@@ -3185,12 +3313,24 @@ static const struct snd_kcontrol_new msm_snd_controls[] = {
 			msm_aux_pcm_rx_format_get, msm_aux_pcm_rx_format_put),
 	SOC_ENUM_EXT("QUAT_AUX_PCM_TX Format", aux_pcm_tx_format,
 			msm_aux_pcm_tx_format_get, msm_aux_pcm_tx_format_put),
+#ifdef USE_QC_HIFI_AMP
 	SOC_ENUM_EXT("HiFi Function", hifi_function, msm_hifi_get,
 			msm_hifi_put),
+#endif
 	SOC_ENUM_EXT("MultiMedia5_RX QOS Vote", qos_vote, msm_qos_ctl_get,
 			msm_qos_ctl_put),
 	SOC_SINGLE_MULTI_EXT("TDM Slot Map", SND_SOC_NOPM, 0, 255, 0, 4,
 	NULL, tdm_slot_map_put),
+#ifdef AUDIO_BYPASS_AFE_ADM_SUPPORT
+	SOC_ENUM_EXT("AFE BYPASS", afe_bypass, afe_bypass_get, afe_bypass_put),
+	SOC_ENUM_EXT("ADM BYPASS", adm_bypass, adm_bypass_get, adm_bypass_put),
+#endif
+	//fih FTM headset and btn detect-S
+	SOC_ENUM_EXT("plug_type", audio_plug_type, audio_plug_type_get,
+			NULL),
+	SOC_ENUM_EXT("btn_state", audio_btn_state, audio_btn_state_get,
+			NULL),
+	//fih FTM headset and btn detect-E
 };
 
 static int msm_snd_enable_codec_ext_clk(struct snd_soc_codec *codec,
@@ -3256,6 +3396,7 @@ static int msm_mclk_event(struct snd_soc_dapm_widget *w,
 	return 0;
 }
 
+#ifdef USE_QC_HIFI_AMP
 static int msm_hifi_ctrl_event(struct snd_soc_dapm_widget *w,
 			       struct snd_kcontrol *k, int event)
 {
@@ -3288,6 +3429,67 @@ static int msm_hifi_ctrl_event(struct snd_soc_dapm_widget *w,
 
 	return 0;
 }
+#endif
+
+#ifdef AUDIO_HAC_SUPPORT
+static int msm_ext_hac_amp_enable(struct snd_soc_codec *codec, u32 on)
+{
+	struct snd_soc_card *card = codec->component.card;
+	struct msm_asoc_mach_data *pdata =
+				snd_soc_card_get_drvdata(card);
+    int ret;
+
+	if (pdata->hac_amp_en_gpio_p) {
+		if (on) {
+			ret = msm_cdc_pinctrl_select_active_state(
+				pdata->hac_amp_en_gpio_p);
+			if(ret)
+				dev_err(codec->dev, "%s: FIH -- set cdc gpio active state fail: %d\n", __func__, ret);
+		}
+		else {
+			ret = msm_cdc_pinctrl_select_sleep_state(
+							pdata->hac_amp_en_gpio_p);
+			if(ret)
+				dev_err(codec->dev, "%s: FIH -- set cdc gpio sleep state fail: %d\n", __func__, ret);
+		}
+	} else if (pdata->hac_amp_en_gpio >= 0) {
+		if (on)
+			gpio_direction_output(ext_hac_amp_en_gpio, 1);
+		else
+			gpio_direction_output(ext_hac_amp_en_gpio, 0);
+	} else {
+		pr_err("%s: external HAC amplifier enable gpio isn't configured\n",
+				__func__);
+		return -EINVAL;
+	}
+	pr_notice("%s: external HAC amplifier enable GPIO: %s\n", __func__,
+				on ? "Enable" : "Disable");
+	return 0;
+}
+
+static int msm_ext_hac_amp_event(struct snd_soc_dapm_widget *w,
+					struct snd_kcontrol *k, int event)
+{
+	struct snd_soc_codec *codec = snd_soc_dapm_to_codec(w->dapm);
+
+	pr_debug("%s()\n", __func__);
+#ifdef CONFIG_FIH_AOP	// AOP
+	if (!strcmp(w->name, "Lineout_2 amp")) {
+#else	// PM2
+	if (!strcmp(w->name, "Lineout_1 amp")) {
+#endif
+		if (SND_SOC_DAPM_EVENT_ON(event))
+			msm_ext_hac_amp_enable(codec, 1);
+		else
+			msm_ext_hac_amp_enable(codec, 0);
+	} else {
+		pr_err("%s: Invalid Widget = %s\n",
+				__func__, w->name);
+		return -EINVAL;
+	}
+	return 0;
+}
+#endif //AUDIO_HAC_SUPPORT
 
 static const struct snd_soc_dapm_widget msm_dapm_widgets[] = {
 
@@ -3298,9 +3500,20 @@ static const struct snd_soc_dapm_widget msm_dapm_widgets[] = {
 	SND_SOC_DAPM_SUPPLY("MCLK TX",  SND_SOC_NOPM, 0, 0,
 	msm_mclk_tx_event, SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMD),
 
+#if defined(AUDIO_HAC_SUPPORT) && defined(CONFIG_FIH_AOP)	// AOP
+	SND_SOC_DAPM_SPK("Lineout_1 amp", NULL),
+	SND_SOC_DAPM_SPK("Lineout_2 amp", msm_ext_hac_amp_event),
+#elif defined(AUDIO_HAC_SUPPORT) && defined(CONFIG_FIH_PM2)	// PM2
+	SND_SOC_DAPM_SPK("Lineout_1 amp", msm_ext_hac_amp_event),
+	SND_SOC_DAPM_SPK("Lineout_2 amp", NULL),
+#else
 	SND_SOC_DAPM_SPK("Lineout_1 amp", NULL),
 	SND_SOC_DAPM_SPK("Lineout_2 amp", NULL),
+#endif //AUDIO_HAC_SUPPORT
+
+#ifdef USE_QC_HIFI_AMP
 	SND_SOC_DAPM_SPK("hifi amp", msm_hifi_ctrl_event),
+#endif
 	SND_SOC_DAPM_MIC("Handset Mic", NULL),
 	SND_SOC_DAPM_MIC("Headset Mic", NULL),
 	SND_SOC_DAPM_MIC("ANCRight Headset Mic", NULL),
@@ -3735,6 +3948,7 @@ done:
 	return rc;
 }
 
+#ifdef USE_QC_MBHC
 static bool msm_usbc_swap_gnd_mic(struct snd_soc_codec *codec, bool active)
 {
 	int value = 0;
@@ -3856,6 +4070,7 @@ static bool msm_swap_gnd_mic(struct snd_soc_codec *codec, bool active)
 	}
 	return ret;
 }
+#endif
 
 static int msm_afe_set_config(struct snd_soc_codec *codec)
 {
@@ -4035,7 +4250,9 @@ static int msm_audrx_init(struct snd_soc_pcm_runtime *rtd)
 	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
+#ifdef USE_QC_SPK_AMP
 	struct snd_soc_component *aux_comp;
+#endif
 	struct snd_card *card;
 	struct snd_info_entry *entry;
 	struct msm_asoc_mach_data *pdata =
@@ -4128,6 +4345,7 @@ static int msm_audrx_init(struct snd_soc_pcm_runtime *rtd)
 	 */
 	pr_debug("%s: Number of aux devices: %d\n",
 		__func__, rtd->card->num_aux_devs);
+#ifdef USE_QC_SPK_AMP
 	if (rtd->card->num_aux_devs &&
 	    !list_empty(&rtd->card->aux_comp_list)) {
 		aux_comp = list_first_entry(&rtd->card->aux_comp_list,
@@ -4139,6 +4357,7 @@ static int msm_audrx_init(struct snd_soc_pcm_runtime *rtd)
 					WCD934X_RX_GAIN_OFFSET_M1P5_DB);
 		}
 	}
+#endif
 	card = rtd->card->snd_card;
 	entry = snd_info_create_subdir(card->module, "codecs",
 				       card->proc_root);
@@ -4169,6 +4388,63 @@ static int msm_wcn_init(struct snd_soc_pcm_runtime *rtd)
 					   tx_ch, ARRAY_SIZE(rx_ch), rx_ch);
 }
 
+#ifdef USE_QC_MBHC
+#ifdef USE_FIH_HS_BTN_TUNING
+static void *def_tavil_mbhc_cal(struct snd_soc_card *card)
+{
+	void *tavil_wcd_cal;
+	struct wcd_mbhc_btn_detect_cfg *btn_cfg;
+	u16 *btn_high;
+
+	const char *hs_btn_vth_low = "fih,msm-btn-vol-thr-low";
+	const char *hs_btn_vth_high = "fih,msm-btn-vol-thr-high";
+	const char *hs_vhs_max = "fih,msm-hs-v-headset-max";
+	// assign default value
+	int l_v_hs_max = 1600;
+	int l_btn_low[8] = {100, 220, 455, 455, 455, 455, 455, 455};
+	int l_btn_high[8] = {105, 225, 500, 500, 500, 500, 500, 500};
+	int ret = 0;
+
+	ret = of_property_read_u32(card->dev->of_node, hs_vhs_max, &l_v_hs_max);
+	if(ret)
+		dev_err(card->dev,"%s: get vref property fail!\n", __func__);
+
+	ret = of_property_read_u32_array(card->dev->of_node, hs_btn_vth_low, l_btn_low, ARRAY_SIZE(l_btn_low));
+	if(ret)
+		dev_err(card->dev,"%s: get btn low property fail!\n", __func__);
+
+	ret = of_property_read_u32_array(card->dev->of_node, hs_btn_vth_high, l_btn_high, ARRAY_SIZE(l_btn_high));
+	if(ret)
+		dev_err(card->dev,"%s: get btn high property fail!\n", __func__);
+
+	tavil_wcd_cal = kzalloc(WCD_MBHC_CAL_SIZE(WCD_MBHC_DEF_BUTTONS,
+				WCD9XXX_MBHC_DEF_RLOADS), GFP_KERNEL);
+	if (!tavil_wcd_cal)
+		return NULL;
+
+#define S(X, Y) ((WCD_MBHC_CAL_PLUG_TYPE_PTR(tavil_wcd_cal)->X) = (Y))
+	S(v_hs_max, l_v_hs_max);
+#undef S
+#define S(X, Y) ((WCD_MBHC_CAL_BTN_DET_PTR(tavil_wcd_cal)->X) = (Y))
+	S(num_btn, WCD_MBHC_DEF_BUTTONS);
+#undef S
+
+	btn_cfg = WCD_MBHC_CAL_BTN_DET_PTR(tavil_wcd_cal);
+	btn_high = ((void *)&btn_cfg->_v_btn_low) +
+		(sizeof(btn_cfg->_v_btn_low[0]) * btn_cfg->num_btn);
+
+	btn_high[0] = l_btn_high[0];
+	btn_high[1] = l_btn_high[1];
+	btn_high[2] = l_btn_high[2];
+	btn_high[3] = l_btn_high[3];
+	btn_high[4] = l_btn_high[4];
+	btn_high[5] = l_btn_high[5];
+	btn_high[6] = l_btn_high[6];
+	btn_high[7] = l_btn_high[7];
+
+	return tavil_wcd_cal;
+}
+#else
 static void *def_tavil_mbhc_cal(void)
 {
 	void *tavil_wcd_cal;
@@ -4202,6 +4478,8 @@ static void *def_tavil_mbhc_cal(void)
 
 	return tavil_wcd_cal;
 }
+#endif//USE_FIH_HS_BTN_TUNING
+#endif//USE_QC_MBHC
 
 static int msm_snd_hw_params(struct snd_pcm_substream *substream,
 			     struct snd_pcm_hw_params *params)
@@ -4582,6 +4860,12 @@ static int msm_get_pinctrl(struct platform_device *pdev)
 	struct msm_pinctrl_info *pinctrl_info = NULL;
 	struct pinctrl *pinctrl;
 	int ret;
+#ifdef USE_FIH_SPK_AMP
+	struct device_node * parent_nd = NULL;
+	struct device_node * dai_mi2s_nd = NULL;
+	struct device_node * mi2s_quat_nd = NULL;
+	struct platform_device * dai_dev = NULL;
+#endif
 
 	pinctrl_info = &pdata->pinctrl_info;
 
@@ -4590,7 +4874,48 @@ static int msm_get_pinctrl(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
+#ifdef USE_FIH_SPK_AMP
+	pr_debug("%s: USE_FIH_SPK_AMP\n", __func__);
+	if(of_property_read_bool(pdev->dev.of_node,"fih,aop-evt2")) {
+		//From evt2, should get mi2s pinctrl from dai_mi2s3
+		pr_debug("%s: aop-evt2, get pinctrl from dai_mi2s3\n", __func__);
+		//parent node is "/soc"
+		parent_nd = of_get_parent(pdev->dev.of_node);
+		if(parent_nd == NULL) {
+			pr_err("%s: parent node is NULL\n", __func__);
+			return -EINVAL;
+		}
+		parent_nd = of_get_parent(parent_nd);
+		if(parent_nd == NULL) {
+			pr_err("%s: parent node is NULL\n", __func__);
+			return -EINVAL;
+		}
+		//look for "qcom,msm-dai-mi2s" under "/soc"
+		dai_mi2s_nd = of_get_child_by_name(parent_nd, "qcom,msm-dai-mi2s");
+		if(dai_mi2s_nd == NULL) {
+			pr_err("%s: dai-mi2s node is NULL\n", __func__);
+			return -EINVAL;
+		}
+		//look for "qcom,msm-dai-q6-mi2s-quat" under "/soc/qcom,msm-dai-mi2s"
+		mi2s_quat_nd = of_get_child_by_name(dai_mi2s_nd, "qcom,msm-dai-q6-mi2s-quat");
+		if(mi2s_quat_nd == NULL) {
+			pr_err("%s: mis2-quat node is NULL\n", __func__);
+			return -EINVAL;
+		}
+		dai_dev = of_find_device_by_node(mi2s_quat_nd);
+		if(dai_dev == NULL) {
+			pr_err("%s: dai_dev is NULL\n", __func__);
+			return -EINVAL;
+		}
+		pinctrl = devm_pinctrl_get(&dai_dev->dev);
+	} else {
+		//Before evt2, directly get mi2s pinctrl from sound-tavil
+		pinctrl = devm_pinctrl_get(&pdev->dev);
+	}
+#else
 	pinctrl = devm_pinctrl_get(&pdev->dev);
+#endif
+
 	if (IS_ERR_OR_NULL(pinctrl)) {
 		pr_err("%s: Unable to get pinctrl handle\n", __func__);
 		return -EINVAL;
@@ -6447,7 +6772,9 @@ static int msm_snd_card_tavil_late_probe(struct snd_soc_card *card)
 	const char *be_dl_name = LPASS_BE_SLIMBUS_0_RX;
 	struct snd_soc_pcm_runtime *rtd;
 	int ret = 0;
+#ifdef USE_QC_MBHC
 	void *mbhc_calibration;
+#endif
 
 	rtd = snd_soc_get_pcm_runtime(card, be_dl_name);
 	if (!rtd) {
@@ -6458,7 +6785,12 @@ static int msm_snd_card_tavil_late_probe(struct snd_soc_card *card)
 		goto err;
 	}
 
+#ifdef USE_QC_MBHC
+#ifdef USE_FIH_HS_BTN_TUNING
+    mbhc_calibration = def_tavil_mbhc_cal(card);
+#else
 	mbhc_calibration = def_tavil_mbhc_cal();
+#endif
 	if (!mbhc_calibration) {
 		ret = -ENOMEM;
 		goto err;
@@ -6470,10 +6802,13 @@ static int msm_snd_card_tavil_late_probe(struct snd_soc_card *card)
 			__func__, ret);
 		goto err_free_mbhc_cal;
 	}
+#endif
 	return 0;
 
+#ifdef USE_QC_MBHC
 err_free_mbhc_cal:
 	kfree(mbhc_calibration);
+#endif
 err:
 	return ret;
 }
@@ -6569,6 +6904,7 @@ err:
 	return ret;
 }
 
+#ifdef USE_QC_MBHC
 static int msm_prepare_us_euro(struct snd_soc_card *card)
 {
 	struct msm_asoc_mach_data *pdata =
@@ -6588,6 +6924,29 @@ static int msm_prepare_us_euro(struct snd_soc_card *card)
 
 	return ret;
 }
+#endif
+
+#ifdef AUDIO_HAC_SUPPORT
+static int msm_prepare_hac_amp(struct snd_soc_card *card)
+{
+	struct msm_asoc_mach_data *pdata =
+				snd_soc_card_get_drvdata(card);
+	int ret = 0;
+
+	if (pdata->hac_amp_en_gpio >= 0) {
+		dev_dbg(card->dev, "%s: hac_amp_en gpio request %d", __func__,
+			pdata->hac_amp_en_gpio);
+		ret = gpio_request(pdata->hac_amp_en_gpio, "ext_hac_amp_en_gpio");
+		if (ret) {
+			dev_err(card->dev,
+				"%s: Failed to request external HAC amplifier enable gpio %d error %d\n",
+				__func__, pdata->hac_amp_en_gpio, ret);
+		}
+	}
+
+	return ret;
+}
+#endif //AUDIO_HAC_SUPPORT
 
 static int msm_audrx_stub_init(struct snd_soc_pcm_runtime *rtd)
 {
@@ -6720,6 +7079,29 @@ static const struct of_device_id sdm845_asoc_machine_of_match[]  = {
 	{},
 };
 
+//FIH add start, for different speaker amplifier
+static void set_speaker_amp_codec_data(const struct device_node *np)
+{
+    int index, mi2s_num;
+    int elem_num = sizeof(samp_codec_data_list)/sizeof(samp_codec_data_t);
+
+    for (index = 0; index < elem_num; index++) {
+        if (of_property_read_bool(np, samp_codec_data_list[index].prop_name)) {
+            pr_err("%s: add for %s\n", __func__ , samp_codec_data_list[index].prop_name);
+            break;
+        }
+    }
+
+    if ( index != elem_num ) {
+        mi2s_num = samp_codec_data_list[index].mi2s_num;
+        msm_mi2s_be_dai_links[mi2s_num].codec_name = samp_codec_data_list[index].codec_name;
+        msm_mi2s_be_dai_links[mi2s_num].codec_dai_name = samp_codec_data_list[index].codec_dai_name;
+    } else {
+    	pr_err("%s: support %d , and 0 found\n", __func__, elem_num);
+    }
+}
+//FIH add end, for different speaker amplifier
+
 static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 {
 	struct snd_soc_card *card = NULL;
@@ -6778,6 +7160,9 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 		}
 		if (of_property_read_bool(dev->of_node,
 					  "qcom,mi2s-audio-intf")) {
+			//FIH add start, for different speaker amplifier
+			set_speaker_amp_codec_data(dev->of_node);
+			//FIH add end, for different speaker amplifier
 			memcpy(msm_tavil_snd_card_dai_links + total_links,
 			       msm_mi2s_be_dai_links,
 			       sizeof(msm_mi2s_be_dai_links));
@@ -6815,6 +7200,7 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 	return card;
 }
 
+#ifdef USE_QC_SPK_AMP
 static int msm_wsa881x_init(struct snd_soc_component *component)
 {
 	u8 spkleft_ports[WSA881X_MAX_SWR_PORTS] = {100, 101, 102, 106};
@@ -7054,6 +7440,7 @@ err_free_dev_info:
 err:
 	return ret;
 }
+#endif
 
 static void msm_i2s_auxpcm_init(struct platform_device *pdev)
 {
@@ -7095,11 +7482,15 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 {
 	struct snd_soc_card *card;
 	struct msm_asoc_mach_data *pdata;
+#ifdef USE_QC_MBHC
 	const char *mbhc_audio_jack_type = NULL;
+#endif
 	char *mclk_freq_prop_name;
 	const struct of_device_id *match;
 	int ret;
+#ifdef USE_QC_MBHC
 	const char *usb_c_dt = "qcom,msm-mbhc-usbc-audio-supported";
+#endif
 
 	if (!pdev->dev.of_node) {
 		dev_err(&pdev->dev, "No platform supplied from device tree\n");
@@ -7167,9 +7558,11 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 		ret = -EPROBE_DEFER;
 		goto err;
 	}
+#ifdef USE_QC_SPK_AMP
 	ret = msm_init_wsa_dev(pdev, card);
 	if (ret)
 		goto err;
+#endif
 
 	ret = devm_snd_soc_register_card(&pdev->dev, card);
 	if (ret == -EPROBE_DEFER) {
@@ -7184,6 +7577,7 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	dev_info(&pdev->dev, "Sound card %s registered\n", card->name);
 	spdev = pdev;
 
+#ifdef USE_QC_HIFI_AMP
 	ret = of_platform_populate(pdev->dev.of_node, NULL, NULL, &pdev->dev);
 	if (ret) {
 		dev_dbg(&pdev->dev, "%s: failed to add child nodes, ret=%d\n",
@@ -7205,7 +7599,9 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 				pdev->dev.of_node->full_name);
 		}
 	}
+#endif
 
+#ifdef USE_QC_MBHC
 	ret = of_property_read_string(pdev->dev.of_node,
 		"qcom,mbhc-audio-jack-type", &mbhc_audio_jack_type);
 	if (ret) {
@@ -7254,6 +7650,7 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	if (ret)
 		dev_dbg(&pdev->dev, "msm_prepare_us_euro failed (%d)\n",
 			ret);
+#endif
 
 	/* Parse pinctrl info from devicetree */
 	ret = msm_get_pinctrl(pdev);
@@ -7271,10 +7668,30 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	is_initial_boot = true;
 	ret = audio_notifier_register("sdm845", AUDIO_NOTIFIER_ADSP_DOMAIN,
 				      &service_nb);
-	if (ret < 0)
+	if (ret < 0) {
 		pr_err("%s: Audio notifier register failed ret = %d\n",
 			__func__, ret);
-
+		REGISTER_ADSP_STATE_NOTIFIER_FAIL;
+	}
+#ifdef AUDIO_HAC_SUPPORT
+	/* external HAC amplifier */
+	pdata->hac_amp_en_gpio = of_get_named_gpio(pdev->dev.of_node,
+				"fih,hac-amp-en-gpio", 0);
+	if (!gpio_is_valid(pdata->hac_amp_en_gpio))
+		pdata->hac_amp_en_gpio_p = of_parse_phandle(pdev->dev.of_node,
+					"fih,hac-amp-en-gpio", 0);
+	if (!gpio_is_valid(pdata->hac_amp_en_gpio) && (!pdata->hac_amp_en_gpio_p)) {
+		dev_info(&pdev->dev, "property %s not detected in node %s",
+			"fih,hac-amp-en-gpio", pdev->dev.of_node->full_name);
+	} else {
+		dev_dbg(&pdev->dev, "%s detected",
+			"fih,hac-amp-en-gpio");
+	}
+	ret = msm_prepare_hac_amp(card);
+	if (ret)
+		dev_info(&pdev->dev, "msm_prepare_hac_amp failed (%d)\n",
+			ret);
+#endif //AUDIO_HAC_SUPPORT
 	return 0;
 err:
 	msm_release_pinctrl(pdev);
@@ -7293,6 +7710,12 @@ static int msm_asoc_machine_remove(struct platform_device *pdev)
 		gpio_free(pdata->us_euro_gpio);
 		pdata->us_euro_gpio = 0;
 	}
+#ifdef AUDIO_HAC_SUPPORT
+	if (pdata->hac_amp_en_gpio > 0) {
+		gpio_free(pdata->hac_amp_en_gpio);
+		pdata->hac_amp_en_gpio = 0;
+	}
+#endif //AUDIO_HAC_SUPPORT
 	msm_i2s_auxpcm_deinit();
 
 	msm_release_pinctrl(pdev);

@@ -17,6 +17,9 @@
 #include <linux/power_supply.h>
 #include "wcdcal-hwdep.h"
 #include <sound/jack.h>
+//fih FTM headset and btn detect-S
+#include <asm/atomic.h>
+//fih FTM headset and btn detect-E
 
 #define TOMBAK_MBHC_NC	0
 #define TOMBAK_MBHC_NO	1
@@ -607,5 +610,10 @@ int wcd_cancel_btn_work(struct wcd_mbhc *mbhc);
 int wcd_mbhc_get_button_mask(struct wcd_mbhc *mbhc);
 void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 			enum snd_jack_types jack_type);
+
+//fih FTM headset and btn detect-S
+int get_plug_type(void);
+int get_btn_state(void);
+//fih FTM headset and btn detect-E
 
 #endif /* __WCD_MBHC_V2_H__ */

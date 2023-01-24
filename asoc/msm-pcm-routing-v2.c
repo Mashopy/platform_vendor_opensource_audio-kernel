@@ -82,6 +82,7 @@ static int msm_route_ext_ec_ref;
 static bool is_custom_stereo_on;
 static bool is_ds2_on;
 static bool swap_ch;
+static int adm_bypass;
 
 #define WEIGHT_0_DB 0x4000
 /* all the FEs which can support channel mixer */
@@ -948,6 +949,18 @@ static struct cal_block_data *msm_routing_find_topology(int path,
 	return msm_routing_find_topology_by_path(path, cal_index);
 }
 
+void adm_set_bypass(int enable)
+{
+	adm_bypass = enable;
+}
+EXPORT_SYMBOL(adm_set_bypass);
+
+int adm_get_bypass(void)
+{
+	return adm_bypass;
+}
+EXPORT_SYMBOL(adm_get_bypass);
+
 /*
  * Retrieving cal_block will mark cal_block as stale.
  * Hence it cannot be reused or resent unless the flag
@@ -960,10 +973,10 @@ static int msm_routing_get_adm_topology(int fedai_id, int session_type,
 	struct cal_block_data *cal_block = NULL;
 	int app_type = 0, acdb_dev_id = 0;
 
-	pr_debug("%s: fedai_id %d, session_type %d, be_id %d\n",
-	       __func__, fedai_id, session_type, be_id);
+	pr_debug("%s: fedai_id %d, session_type %d, be_id %d, bypass %d\n",
+	       __func__, fedai_id, session_type, be_id, adm_bypass);
 
-	if (cal_data == NULL)
+	if (cal_data == NULL || adm_bypass)
 		goto done;
 
 	app_type = fe_dai_app_type_cfg[fedai_id][session_type][be_id].app_type;
@@ -17446,6 +17459,8 @@ err:
 
 static int __init msm_soc_routing_platform_init(void)
 {
+	adm_bypass = 0;
+
 	mutex_init(&routing_lock);
 	if (msm_routing_init_cal_data())
 		pr_err("%s: could not init cal data!\n", __func__);
