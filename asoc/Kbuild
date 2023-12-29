@@ -127,11 +127,11 @@ endif
 
 # for MSM8909 sound card driver
 ifdef CONFIG_SND_SOC_BG_8909
-	MACHINE_OBJS += msm_bg.o
+	MACHINE_BG_OBJS += msm_bg.o
 endif
 
 ifdef CONFIG_SND_SOC_8909_DIG_CDC
-	MACHINE_DIGCDC_OBJS += msm8909.o
+	MACHINE_OBJS += msm8909.o
 endif
 
 ifdef CONFIG_SND_SOC_CPE
@@ -216,38 +216,38 @@ ifeq ($(KERNEL_BUILD), 1)
 	obj-y += codecs/
 endif
 # Module information used by KBuild framework
-obj-$(CONFIG_SND_SOC_QDSP6V2) += platform_dlkm.o
-platform_dlkm-y := $(PLATFORM_OBJS)
+obj-$(CONFIG_SND_SOC_QDSP6V2) += audio_platform.o
+audio_platform-y := $(PLATFORM_OBJS)
 
-obj-$(CONFIG_SND_SOC_SDM450) += machine_dlkm.o
-machine_dlkm-y := $(MACHINE_OBJS)
+obj-$(CONFIG_SND_SOC_SDM450) += audio_machine_msm8909.o
+audio_machine_msm8909-y := $(MACHINE_OBJS)
 
-obj-$(CONFIG_SND_SOC_MSM8909) += machine_int_dlkm.o
-machine_int_dlkm-y := $(MACHINE_INT_OBJS)
+obj-$(CONFIG_SND_SOC_MSM8909) += audio_machine_int.o
+audio_machine_int-y := $(MACHINE_INT_OBJS)
 
-obj-$(CONFIG_SND_SOC_EXT_CODEC_8909) += machine_ext_dlkm.o
-machine_ext_dlkm-y := $(MACHINE_EXT_OBJS)
+obj-$(CONFIG_SND_SOC_EXT_CODEC_8909) += audio_machine_ext.o
+audio_machine_ext-y := $(MACHINE_EXT_OBJS)
 
-obj-$(CONFIG_SND_SOC_EXT_CODEC_SDM450) += machine_ext_dlkm.o
-machine_ext_dlkm-y := $(MACHINE_EXT_OBJS)
+obj-$(CONFIG_SND_SOC_EXT_CODEC_SDM450) += audio_machine_ext.o
+audio_machine_ext-y := $(MACHINE_EXT_OBJS)
 
-obj-$(CONFIG_SND_SOC_BG_8909) += machine_dlkm.o
-machine_dlkm-y := $(MACHINE_OBJS)
+obj-$(CONFIG_SND_SOC_BG_8909) += audio_machine_msm8909_bg.o
+audio_machine_msm8909_bg-y := $(MACHINE_BG_OBJS)
 
-obj-$(CONFIG_SND_SOC_8909_DIG_CDC) += machine_digcdc_dlkm.o
-machine_digcdc_dlkm-y := $(MACHINE_DIGCDC_OBJS)
+obj-$(CONFIG_SND_SOC_8909_DIG_CDC) += audio_machine_msm8909.o
+audio_machine_msm8909-y := $(MACHINE_OBJS)
 
-obj-$(CONFIG_SND_SOC_MACHINE_SDM845) += machine_dlkm.o
-machine_dlkm-y := $(MACHINE_OBJS)
+obj-$(CONFIG_SND_SOC_MACHINE_SDM845) += audio_machine_msm8909.o
+audio_machine_msm8909-y := $(MACHINE_OBJS)
 
-obj-$(CONFIG_SND_SOC_EXT_CODEC) += machine_dlkm.o
-machine_dlkm-y := $(MACHINE_OBJS)
+obj-$(CONFIG_SND_SOC_EXT_CODEC) += audio_machine_msm8909.o
+audio_machine_msm8909-y := $(MACHINE_OBJS)
 
-obj-$(CONFIG_SND_SOC_INT_CODEC) += machine_dlkm.o
-machine_dlkm-y := $(MACHINE_OBJS)
+obj-$(CONFIG_SND_SOC_INT_CODEC) += audio_machine_msm8909.o
+audio_machine_msm8909-y := $(MACHINE_OBJS)
 
-obj-$(CONFIG_SND_SOC_CPE) += cpe_lsm_dlkm.o
-cpe_lsm_dlkm-y := $(CPE_LSM_OBJS)
+obj-$(CONFIG_SND_SOC_CPE) += audio_cpe_lsm.o
+audio_cpe_lsm-y := $(CPE_LSM_OBJS)
 
 # inject some build related information
 DEFINES += -DBUILD_TIMESTAMP=\"$(shell date -u +'%Y-%m-%dT%H:%M:%SZ')\"

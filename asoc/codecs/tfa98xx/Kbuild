@@ -1,10 +1,11 @@
 # We can build either as part of a standalone Kernel build or as
 # an external module.  Determine which mechanism is being used
-ifeq ($(MODNAME), )
+ifeq ($(MODNAME),)
 	KERNEL_BUILD := 1
 else
 	KERNEL_BUILD := 0
 endif
+
 
 ifeq ($(KERNEL_BUILD), 1)
 	# These are configurable via Kconfig for kernel-based builds
@@ -18,7 +19,6 @@ ifeq ($(KERNEL_BUILD), 0)
 		include $(AUDIO_ROOT)/config/sdm845auto.conf
 		export
 		INCS    +=  -include $(AUDIO_ROOT)/config/sdm845autoconf.h
-
 	endif
 	ifeq ($(CONFIG_ARCH_SDM670), y)
 		include $(AUDIO_ROOT)/config/sdm710auto.conf
@@ -35,15 +35,15 @@ ifeq ($(KERNEL_BUILD), 0)
 		export
 		INCS    +=  -include $(AUDIO_ROOT)/config/sdm450autoconf.h
 	endif
-	ifeq ($(CONFIG_ARCH_MSM8909), y)
-		include $(AUDIO_ROOT)/config/msm8909auto.conf
-		export
-		INCS    +=  -include $(AUDIO_ROOT)/config/msm8909autoconf.h
-	endif
 	ifeq ($(CONFIG_ARCH_MSM8917), y)
 		include $(AUDIO_ROOT)/config/sdm450auto.conf
 		export
 		INCS    +=  -include $(AUDIO_ROOT)/config/sdm450autoconf.h
+	endif
+	ifeq ($(CONFIG_ARCH_MSM8909), y)
+		include $(AUDIO_ROOT)/config/msm8909auto.conf
+		export
+		INCS    +=  -include $(AUDIO_ROOT)/config/msm8909autoconf.h
 	endif
 endif
 
@@ -71,37 +71,15 @@ UAPI_INC :=	-I$(AUDIO_ROOT)/include/$(UAPI_DIR)
 COMMON_DIR :=	include
 COMMON_INC :=	-I$(AUDIO_ROOT)/$(COMMON_DIR)
 
-############ Native Enc/Dec ############
+############ tfa98xx ############
 
-ifdef CONFIG_MSM_QDSP6V2_CODECS
-	NATIVE_OBJS += q6audio_v2.o q6audio_v2_aio.o
-	NATIVE_OBJS += audio_utils_aio.o
-	NATIVE_OBJS += audio_utils.o
-	NATIVE_OBJS += audio_native.o
-	NATIVE_OBJS += aac_in.o
-	NATIVE_OBJS += amrnb_in.o
-	NATIVE_OBJS += amrwb_in.o
-	NATIVE_OBJS += audio_aac.o
-	NATIVE_OBJS += audio_alac.o
-	NATIVE_OBJS += audio_amrnb.o
-	NATIVE_OBJS += audio_amrwb.o
-	NATIVE_OBJS += audio_amrwbplus.o
-	NATIVE_OBJS += audio_ape.o
-	NATIVE_OBJS += audio_evrc.o
-	NATIVE_OBJS += audio_g711alaw.o
-	NATIVE_OBJS += audio_g711mlaw.o
-	NATIVE_OBJS += audio_hwacc_effects.o
-	NATIVE_OBJS += audio_mp3.o
-	NATIVE_OBJS += audio_multi_aac.o
-	NATIVE_OBJS += audio_qcelp.o
-	NATIVE_OBJS += audio_wma.o
-	NATIVE_OBJS += audio_wmapro.o
-	NATIVE_OBJS += evrc_in.o
-	NATIVE_OBJS += g711alaw_in.o
-	NATIVE_OBJS += g711mlaw_in.o
-	NATIVE_OBJS += qcelp_in.o
+# for tfa98xx Codec
+ifdef CONFIG_SND_SOC_TFA98XX
+	TFA98XX_OBJS += tfa98xx.o
+	TFA98XX_OBJS += tfa_container.o
+	TFA98XX_OBJS += tfa_dsp.o
+	TFA98XX_OBJS += tfa_init.o
 endif
-
 LINUX_INC +=	-Iinclude/linux
 
 INCS +=		$(COMMON_INC) \
@@ -135,14 +113,18 @@ ifeq ($(call cc-option-yn, -Wheader-guard),y)
 EXTRA_CFLAGS += -Wheader-guard
 endif
 
+
 ifeq ($(KERNEL_BUILD), 0)
+KBUILD_EXTRA_SYMBOLS +=$(OUT)/obj/vendor/qcom/opensource/audio-kernel/ipc/Module.symvers
 KBUILD_EXTRA_SYMBOLS +=$(OUT)/obj/vendor/qcom/opensource/audio-kernel/dsp/Module.symvers
 KBUILD_EXTRA_SYMBOLS +=$(OUT)/obj/vendor/qcom/opensource/audio-kernel/asoc/Module.symvers
+KBUILD_EXTRA_SYMBOLS +=$(OUT)/obj/vendor/qcom/opensource/audio-kernel/asoc/codecs/Module.symvers
+KBUILD_EXTRA_SYMBOLS +=$(OUT)/obj/vendor/qcom/opensource/audio-kernel/soc/Module.symvers
 endif
 
 # Module information used by KBuild framework
-obj-$(CONFIG_MSM_QDSP6V2_CODECS) += audio_native.o
-audio_native-y := $(NATIVE_OBJS)
+obj-$(CONFIG_SND_SOC_TFA98XX) += audio_tfa98xx.o
+audio_tfa98xx-y := $(TFA98XX_OBJS)
 
 # inject some build related information
 DEFINES += -DBUILD_TIMESTAMP=\"$(shell date -u +'%Y-%m-%dT%H:%M:%SZ')\"

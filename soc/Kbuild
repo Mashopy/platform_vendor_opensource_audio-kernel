@@ -130,17 +130,17 @@ EXTRA_CFLAGS += -Wheader-guard
 endif
 
 # Module information used by KBuild framework
-obj-$(CONFIG_PINCTRL_WCD) += pinctrl_wcd_dlkm.o
-pinctrl_wcd_dlkm-y := $(PINCTRL_WCD_OBJS)
+obj-$(CONFIG_PINCTRL_WCD) += audio_pinctrl_wcd.o
+audio_pinctrl_wcd-y := $(PINCTRL_WCD_OBJS)
 
-obj-$(CONFIG_PINCTRL_LPI) += pinctrl_lpi_dlkm.o
-pinctrl_lpi_dlkm-y := $(PINCTRL_LPI_OBJS)
+obj-$(CONFIG_PINCTRL_LPI) += audio_pinctrl_lpi.o
+audio_pinctrl_lpi-y := $(PINCTRL_LPI_OBJS)
 
-obj-$(CONFIG_SOUNDWIRE) += swr_dlkm.o
-swr_dlkm-y := $(SWR_OBJS)
+obj-$(CONFIG_SOUNDWIRE) += audio_swr.o
+audio_swr-y := $(SWR_OBJS)
 
-obj-$(CONFIG_SOUNDWIRE_WCD_CTRL) += swr_ctrl_dlkm.o
-swr_ctrl_dlkm-y := $(SWR_CTRL_OBJS)
+obj-$(CONFIG_SOUNDWIRE_WCD_CTRL) += audio_swr_ctrl.o
+audio_swr_ctrl-y := $(SWR_CTRL_OBJS)
 
 # inject some build related information
 DEFINES += -DBUILD_TIMESTAMP=\"$(shell date -u +'%Y-%m-%dT%H:%M:%SZ')\"

@@ -1773,8 +1773,9 @@ static const struct snd_soc_dapm_widget msm_dig_dapm_widgets[] = {
 		MSM89XX_CDC_CORE_CLK_RX_I2S_CTL, 4, 0, NULL, 0),
 	SND_SOC_DAPM_SUPPLY("TX_I2S_CLK",
 		MSM89XX_CDC_CORE_CLK_TX_I2S_CTL, 4, 0, NULL, 0),
-
-	SND_SOC_DAPM_SUPPLY("DIGITAL_REGULATOR", SND_SOC_NOPM,
+	/* ouyangxun modify the name from DIGITAL_REGULATOR to DIGIT_REGULATOR
+	to match the name in dts*/
+	SND_SOC_DAPM_SUPPLY("DIGIT_REGULATOR", SND_SOC_NOPM, 
 		ON_DEMAND_DIGITAL, 0,
 		msm_dig_cdc_enable_on_demand_supply,
 		SND_SOC_DAPM_PRE_PMU |
@@ -1955,7 +1956,7 @@ static int msm_dig_cdc_enable_on_demand_supply(
 		ret = -EINVAL;
 		goto out;
 	}
-	dev_dbg(codec->dev, "%s: supply: %s event: %d ref: %d\n",
+	dev_info(codec->dev, "%s: supply: %s event: %d ref: %d\n",
 		__func__, on_demand_supply_name[w->shift], event,
 		atomic_read(&msm_dig_cdc->on_demand_list[w->shift].ref));
 
@@ -2403,7 +2404,7 @@ static int msm_dig_cdc_probe(struct platform_device *pdev)
 	dev_set_drvdata(&pdev->dev, msm_dig_cdc);
 	snd_soc_register_codec(&pdev->dev, &soc_msm_dig_codec,
 				msm_codec_dais, ARRAY_SIZE(msm_codec_dais));
-	dev_dbg(&pdev->dev, "%s: registered DIG CODEC 0x%x\n",
+	dev_info(&pdev->dev, "%s: registered DIG CODEC 0x%x\n",
 			__func__, dig_cdc_addr);
 	return ret;
 err_supplies:

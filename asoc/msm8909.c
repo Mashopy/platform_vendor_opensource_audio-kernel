@@ -1251,7 +1251,7 @@ static int msm_audrx_init(struct snd_soc_pcm_runtime *rtd)
 				 __func__);
 	}
 	pdata->codec_root = codec_root;
-	msm_dig_codec_info_create_codec_entry(codec_root, codec);
+	//msm_dig_codec_info_create_codec_entry(codec_root, codec);
 	return 0;
 }
 
@@ -1984,8 +1984,9 @@ static struct snd_soc_dai_link msm8909_dai[] = {
 		.async_ops = ASYNC_DPCM_SND_SOC_PREPARE |
 			ASYNC_DPCM_SND_SOC_HW_PARAMS,
 		.id = MSM_BACKEND_DAI_PRI_MI2S_RX,
-		.be_hw_params_fixup = msm_mi2s_rx_be_hw_params_fixup,
-		.ops = &msm8909_mi2s_be_ops,
+                //Delete by ouyangxun,when CVE2017-0609 test the watch will crash
+		//.be_hw_params_fixup = msm_mi2s_rx_be_hw_params_fixup,
+		//.ops = &msm8909_mi2s_be_ops,
 		.ignore_suspend = 1,
 	},
 	{
@@ -2024,8 +2025,13 @@ static struct snd_soc_dai_link msm8909_dai[] = {
 		.stream_name = "Quaternary MI2S Playback",
 		.cpu_dai_name = "msm-dai-q6-mi2s.3",
 		.platform_name = "msm-pcm-routing",
+		// PSW.MM.AudioDriver.Codec, 2020/01/20, Modify for tfa9895 codec
+		/*
 		.codec_dai_name = "snd-soc-dummy-dai",
 		.codec_name = "snd-soc-dummy",
+		*/
+		.codec_dai_name = "tfa98xx-aif-2-34",
+		.codec_name = "tfa98xx.2-0034",
 		.no_pcm = 1,
 		.dpcm_playback = 1,
 		.id = MSM_BACKEND_DAI_QUATERNARY_MI2S_RX,
@@ -2039,8 +2045,13 @@ static struct snd_soc_dai_link msm8909_dai[] = {
 		.stream_name = "Quaternary MI2S Capture",
 		.cpu_dai_name = "msm-dai-q6-mi2s.3",
 		.platform_name = "msm-pcm-routing",
+		// PSW.MM.AudioDriver.Codec, 2020/01/20, Modify for tfa9895 codec
+		/*
 		.codec_dai_name = "snd-soc-dummy-dai",
 		.codec_name = "snd-soc-dummy",
+		*/
+		.codec_dai_name = "tfa98xx-aif-2-34",
+		.codec_name = "tfa98xx.2-0034",
 		.no_pcm = 1,
 		.dpcm_capture = 1,
 		.id = MSM_BACKEND_DAI_QUATERNARY_MI2S_TX,
@@ -2463,6 +2474,7 @@ static int msm8909_asoc_machine_probe(struct platform_device *pdev)
 	int num_strings;
 	int ret, id, i, val;
 	struct resource	*muxsel;
+	pr_err("%s: enter msm8909_asoc_machine_probe\n", __func__);
 
 	pdata = devm_kzalloc(&pdev->dev,
 			sizeof(struct msm_asoc_mach_data), GFP_KERNEL);
@@ -2640,6 +2652,7 @@ parse_mclk_freq:
 			ret);
 		goto err;
 	}
+	pr_err("%s: sound card register success.\n", __func__);
 	return 0;
 err:
 	if (pdata->vaddr_gpio_mux_spkr_ctl)
